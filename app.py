@@ -54,7 +54,7 @@ def main():
     with st.sidebar:
 
         # Logo
-        st.image('Lambertus.png', use_column_width=True)
+        st.image('Logo_Dorfverein.jpeg', use_column_width=True)
 
         st.header('Neues Codewort hinzufügen')
         vereinsname = st.text_input('Vereinsname')
