@@ -1,12 +1,13 @@
 import sqlite3
 import streamlit as st
 import pandas as pd
-
+from io import BytesIO  # Für den In-Memory-Download
 
 def main():
 
     # SQLite Datenbankverbindung
-    conn = sqlite3.connect('codewords.db')
+    db_path = 'codewords.db'
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     # Tabelle erstellen (falls noch nicht vorhanden)
@@ -37,8 +38,21 @@ def main():
     def export_to_excel():
         data = get_codewords()
         df = pd.DataFrame(data, columns=['ID', 'Vereinsname', 'Codewort'])
-        df.to_excel('codewords_export.xlsx', index=False)
+        
+        # Excel-Datei in einem BytesIO-Puffer speichern
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False)
+        
+        buffer.seek(0)  # Setze den Cursor auf den Anfang des Puffers
+        return buffer
     
+    # Funktion zum Exportieren der Datenbankdatei
+    def export_db():
+        with open(db_path, 'rb') as f:
+            db_data = f.read()
+        return db_data
+        
     # Passwortschutz für Admin-Funktionen (Laden aus secrets)
     def check_password():
         # Admin-Passwort aus Streamlit-Secrets laden
@@ -56,9 +70,9 @@ def main():
         # Logo
         st.image('Logo_Dorfverein.jpeg', use_column_width=True)
 
-        st.header('Neues Codewort hinzufügen')
-        vereinsname = st.text_input('Vereinsname')
-        codewort = st.text_input('Codewort')
+        st.header('Neues Codewort hinzufügen', divider="gray")
+        vereinsname = st.text_input('Vereinsname', help='Hier den Vereinsnamen eintragen.')
+        codewort = st.text_input('Codewort', help='Hier das Codewort eintragen.')
         if st.button('Codewort hinzufügen'):
             if vereinsname.strip() != '' and codewort.strip() != '':
                 add_codeword(vereinsname, codewort)
@@ -69,19 +83,36 @@ def main():
         st.sidebar.markdown("---")
         if check_password():
             with st.expander("Admin-Optionen", expanded=False):
-                st.header('Admin-Optionen')
+                st.header('Admin-Optionen', divider="gray")
+                
+                #st.header('Datenbank exportieren')
+                # Button zum Herunterladen der Datenbank
+                if st.button('Datenbank exportieren'):
+                    # Download als Excel
+                    excel_data = export_to_excel()
+                    st.download_button(
+                        label="Excel-Datei herunterladen",
+                        data=excel_data,
+                        file_name='codewords_export.xlsx',
+                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    )
+                    
+                    # Download der Datenbank
+                    db_file = export_db()
+                    st.download_button(
+                        label="Datenbank herunterladen",
+                        data=db_file,
+                        file_name='codewords.db',
+                        mime='application/octet-stream'
+                    )
 
-                if st.button('Export als Excel'):
-                    export_to_excel()
-                    st.success('Codewörter erfolgreich als Excel exportiert!')
-
-                st.header('Einträge löschen')
+                st.header('Einträge löschen', divider="gray")
                 selected_verein = st.selectbox('Wähle einen Verein zum Löschen aus', [x[1] for x in get_codewords()])
                 if st.button('Eintrag löschen'):
                     delete_codeword(selected_verein)
                     st.success(f'Eintrag für {selected_verein} gelöscht!')
 
-                st.header('Codewort bearbeiten')
+                st.header('Codewort bearbeiten', divider="gray")
                 edit_verein = st.selectbox('Wähle einen Verein zum Bearbeiten aus', [x[1] for x in get_codewords()])
                 new_codewort = st.text_input('Neues Codewort für den Verein eingeben', value='')
 
@@ -97,10 +128,10 @@ def main():
 
     codewords_list = get_codewords()
     if len(codewords_list) == 0:
-        st.info('Keine Codewörter hinzugefügt.')
+        st.error('Keine Codewörter hinzugefügt.')
 
     vereinsnamen = [item[1] for item in codewords_list]
-    selected_verein = st.selectbox('Wähle einen Verein aus', sorted(vereinsnamen))
+    selected_verein = st.selectbox('Wähle einen Verein aus', sorted(vereinsnamen), help='Hier einen Verein auswählen, um dessen Codewort anzuzeigen.')
 
     if st.button('Zeige Codewort'):
         for id, verein, codewort in codewords_list:
@@ -112,8 +143,7 @@ def main():
     # Copyright- und Versionsinformation hinzufügen
     st.sidebar.markdown("---")
     st.sidebar.text("© 2024 - Fabian Pingel")
-    st.sidebar.text("Version: 1.0")
-
+    st.sidebar.text("Version: 1.1")
 
 if __name__ == "__main__":
     main()
